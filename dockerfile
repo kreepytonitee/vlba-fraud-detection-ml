@@ -12,7 +12,7 @@
   COPY src/app/main.py src/app/
   COPY src/features/feature_engineering.py src/features/
   COPY src/models/predict.py src/models/
-  COPY src/utils/config.py src/utils/
+  # COPY src/utils/config.py src/utils/
 
   # Create directories for MLflow artifacts and data if they don't exist
   # RUN mkdir -p /app/mlruns /app/data/processed /app/data/simulated

@@ -1,0 +1,7 @@
+  pandas
+  scikit-learn
+  xgboost
+  mlflow
+  uvicorn # For FastAPI
+  fastapi # For API serving
+#  faker # For data simulation

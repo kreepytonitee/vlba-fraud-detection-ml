@@ -1,0 +1,30 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'europe-west10-docker.pkg.dev/$PROJECT_ID/fraud-detection-repo/fraud-detector-api:latest', '.']
+  dir: 'src/app' # Adjust if your Dockerfile is not in the root
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'europe-west10-docker.pkg.dev/$PROJECT_ID/fraud-detection-repo/fraud-detector-api:latest']
+# Add steps for running tests, model training, and deployment below
+# For training (example - assuming your training script can run via Docker)
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['run', 'europe-west10-docker.pkg.dev/$PROJECT_ID/fraud-detection-repo/fraud-detector-training:latest', 'python', 'train.py'] # If you have a separate training image
+  env:
+    - 'MLFLOW_TRACKING_URI=gs://vlba-fraud-detection-mlflow-artifacts' # Point to GCS for MLflow
+  timeout: '1200s' # Adjust timeout for training
+# For Cloud Run deployment
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'run'
+  - 'deploy'
+  - 'fraud-detector-service' # Name for your Cloud Run service
+  - '--image'
+  - 'europe-west10-docker.pkg.dev/$PROJECT_ID/fraud-detection-repo/fraud-detector-api:latest'
+  - '--region'
+  - 'europe-west10'
+  - '--platform'
+  - 'managed'
+  - '--allow-unauthenticated' # Only for public facing API, otherwise consider IAP
+  - '--port=8080' # Or whatever your FastAPI app listens on
+  # Add environment variables for your application, e.g., MLFLOW_MODEL_URI
+  - '--set-env-vars=MLFLOW_MODEL_URI=models:/XGBoostFraudDetector/Production'

@@ -19,6 +19,12 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2 # Use the dedicated auth action
+      with:
+        # Pass your service account key to the auth action
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       with:
@@ -29,7 +35,17 @@ jobs:
         # https://github.com/google-github-actions/auth#authenticating-with-workload-identity-federation
         # Replace `your-service-account-email` with your actual service account email.
         # service_account: artifact-registry-access@vlba-fraud-detection.iam.gserviceaccount.com
-        service_account_key: ${{ secrets.GCP_SA_KEY }} # Fallback for non-WIF, or if you prefer SA key
+        # service_account_key: ${{ secrets.GCP_SA_KEY }} # Fallback for non-WIF, or if you prefer SA key
+      
+    - name: Debug GCloud Authentication State # <--- NEW STEP FOR DEBUGGING
+      run: |
+        echo "Attempting to list gcloud accounts..."
+        gcloud auth list
+        echo "Attempting to show current gcloud project..."
+        gcloud config get-value project
+        echo "Attempting to show current active gcloud account..."
+        gcloud config get-value account
+      continue-on-error: true # Allow subsequent steps to run even if this fails
 
     - name: Authorize Docker for GCR
       run: gcloud auth configure-docker

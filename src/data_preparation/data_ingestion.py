@@ -1,20 +1,20 @@
 import pandas as pd
+from google.cloud import storage
+import io
+from src.utils.config import Config
+from src.utils.logger import logger
 
-def load_data(filepath: str) -> pd.DataFrame:
-    """Loads data from a CSV file."""
+def load_data_from_gcs():
+    """Loads data from Google Cloud Storage."""
+    client = storage.Client()
+    bucket = client.get_bucket(Config.GCS_DATA_BUCKET)
+    blob = bucket.blob(Config.GCS_DATA_FILE)
+
     try:
-        df = pd.read_csv(filepath)
-        print(f"Data loaded successfully from {filepath}. Shape: {df.shape}")
+        data_bytes = blob.download_as_bytes()
+        df = pd.read_csv(io.BytesIO(data_bytes))
+        logger.info(f"Successfully loaded data from gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_DATA_FILE}")
         return df
-    except FileNotFoundError:
-        print(f"Error: File not found at {filepath}")
-        return pd.DataFrame()
     except Exception as e:
-        print(f"Error loading data: {e}")
-        return pd.DataFrame()
-
-if __name__ == "__main__":
-    # Example usage (assuming transactions.csv is in data/raw/)
-    raw_data = load_data("https://storage.cloud.google.com/vlba-fd-data/raw/transactions.csv")
-    if not raw_data.empty:
-        print(raw_data.head())
+        logger.error(f"Error loading data from GCS: {e}")
+        raise

@@ -1,104 +1,185 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-import mlflow
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+import joblib
+import json
+import pandas as pd
 import os
-import pandas as pd # Make sure pandas is imported if you use it for model input
+import time
+import io
+from typing import List, Optional, Dict, Any
+from datetime import datetime
+from google.cloud import storage
+from collections import Counter
+from src.utils.config import Config
+from src.utils.logger import logger
+from src.data_preparation.data_ingestion import load_data_from_gcs
+from src.data_preparation.data_preprocessing import process_and_split_data
+from src.features.feature_engineering import apply_feature_engineering # Import the function
 
-from contextlib import asynccontextmanager # Import the new helper
+app = FastAPI(
+    title="Fraud Detection API",
+    description="API for detecting fraudulent bank transactions."
+)
 
-# Define your input schema
-class TransactionFeatures(BaseModel):
-    feature1: float
-    feature2: float
-    # ... add all your features your model expects
-
-# Global variable to hold the loaded model
-# This will be loaded once when the application starts
+# Global variables for model and monitoring
 model = None
+with open("data/feature_columns.json", "r") as f:
+    MODEL_FEATURE_ORDER = json.load(f)
+production_dataset: pd.DataFrame = pd.DataFrame()
+monitoring_data = {
+    Config.PREDICTION_COUNT_KEY: 0,
+    Config.PREDICTION_DISTRIBUTION_KEY: Counter(),
+    Config.PREDICTION_LATENCY_KEY: [] # Store latencies to calculate average
+}
 
-# MLflow model URI can be passed via environment variable for flexibility
-# Use a default that makes sense for your setup during local development,
-# but ensure it's overridden by your deployment environment (e.g., Cloud Run)
-MLFLOW_MODEL_URI = os.getenv("MLFLOW_MODEL_URI", "runs:/<YOUR_LAST_MLFLOW_RUN_ID>/xgboost_model")
-# OR for a registered model:
-# MLFLOW_MODEL_URI = os.getenv("MLFLOW_MODEL_URI", "models:/XGBoostFraudDetector/Production")
+# Define your transaction features here based on your dataset
+class Transaction(BaseModel):
+    # Field(alias="Unnamed: int64") can be used if you absolutely need to keep original name
+    Timestamp: str
+    From_Bank: int
+    Account: str
+    To_Bank: int
+    Account_To: str = Field(alias="Account.1") # Renamed from Account.1 for valid Python variable name
+    Amount_Received: float
+    Receiving_Currency: str
+    Amount_Paid: float
+    Payment_Currency: str
+    Payment_Format: str
+    # Is_Laundering: float # Removed: Assuming this is the target variable, not an input feature.
 
 
-# --- Lifespan Context Manager ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Handles startup and shutdown events for the FastAPI application.
-    Loads the ML model when the application starts.
-    """
+
+# Helper to load model from GCS
+def load_model_from_gcs():
+    """Loads the machine learning model from Google Cloud Storage."""
     global model
-    print(f"[{__name__}] Startup: Loading model from MLflow URI: {MLFLOW_MODEL_URI}")
+    client = storage.Client()
+    bucket = client.get_bucket(Config.GCS_MODEL_BUCKET)
+    blob = bucket.blob(Config.GCS_MODEL_FILE)
+
     try:
-        # MLflow's load_model can be synchronous, but it's good practice
-        # to use await if any part of the model loading becomes async.
-        # For typical MLflow model loading, direct call is fine.
-        model = mlflow.pyfunc.load_model(MLFLOW_MODEL_URI)
-        print(f"[{__name__}] Startup: Model loaded successfully!")
+        model_bytes = blob.download_as_bytes()
+        model = joblib.load(io.BytesIO(model_bytes))
+        logger.info(f"Successfully loaded model from gs://{Config.GCS_MODEL_BUCKET}/{Config.GCS_MODEL_FILE}")
     except Exception as e:
-        print(f"[{__name__}] Startup: Error loading model: {e}")
-        # Depending on criticality, you might want to exit here or log more severely
-        # For production, an app failing to load its core component should usually not start.
-        raise RuntimeError(f"Failed to load ML model at startup: {e}") from e
+        logger.error(f"Error loading model from GCS: {e}")
+        raise
 
-    yield # The application starts serving requests here
+# Helper to load production dataset
+def load_production_data_from_gcs():
+    """Loads data from Google Cloud Storage."""
+    global production_dataset
+    client = storage.Client()
+    bucket = client.get_bucket(Config.GCS_DATA_BUCKET)
+    blob = bucket.blob(Config.GCS_PRODUCTION_DATA_FILE)
 
-    # This code runs on shutdown
-    print(f"[{__name__}] Shutdown: Application shutting down.")
-    # You could add cleanup logic here if needed, e.g., closing database connections
-# --- End Lifespan Context Manager ---
+    try:
+        production_data_bytes = blob.download_as_bytes()
+        production_dataset = pd.read_csv(io.BytesIO(production_data_bytes))
+        logger.info(f"Successfully loaded production data from gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_PRODUCTION_DATA_FILE}")
+    except Exception as e:
+        logger.error(f"Error loading production data from GCS: {e}")
+        raise
 
+# --- Application Startup Event ---
+# This function runs once when the FastAPI application starts.
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting up application...")
+    load_model_from_gcs()
+    load_production_data_from_gcs() # Load production data when app starts
 
-# Pass the lifespan context manager to the FastAPI application
-app = FastAPI(title="Fraud Detection API", lifespan=lifespan)
-
-
+# --- Health Check Endpoint (Recommended for Cloud Deployments) ---
+# This endpoint can be used by deployment platforms (like Cloud Run) to check
+# if the application is healthy and ready to receive requests.
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
-    if model is not None:
-        return {"status": "ok", "model_loaded": True}
-    return {"status": "error", "model_loaded": False, "message": "Model not loaded. Check startup logs."}
+    return {"status": "ok", "model_loaded": model is not None, "production_data_loaded": not production_dataset.empty}
 
+# --- Prediction Endpoint ---
 @app.post("/predict")
-async def predict_fraud(transaction: TransactionFeatures):
-    """Endpoint for predicting fraud."""
-    if model is None:
-        # This error indicates a critical failure during startup
-        return {"error": "Model not loaded. Please check server logs.", "status": "error"}, 500
-
-    # Convert input features to a format the model expects (e.g., pandas DataFrame)
-    # Ensure the order and names of features match what the model was trained on
-    # You might need to add more robust feature ordering/validation here.
-    features_dict = transaction.dict()
-    features_df = pd.DataFrame([features_dict])
-
-    # Make prediction
+async def predict(transaction: Transaction):
     try:
-        # Assuming your MLflow pyfunc model has a predict_proba method for binary classification
-        prediction_proba = model.predict_proba(features_df)[:, 1][0]
-        prediction = (prediction_proba > 0.5).astype(int) # Example threshold
+        # Convert Pydantic model to a Python dictionary, then to a Pandas DataFrame row.
+        # Use .model_dump(by_alias=True) to handle field aliases (like "Account.1")
+        transaction_dict = transaction.model_dump(by_alias=True)
+        # Wrap the dict in a list to create a DataFrame with a single row
+        input_df = pd.DataFrame([transaction_dict])
+
+        logger.info(f"Received input DataFrame for prediction: \n{input_df.to_string()}")
+
+        # Apply the same feature engineering logic used during training.
+        # This function will handle categorical encoding and feature alignment.
+        processed_feature_df = apply_feature_engineering(input_df)
+        
+        logger.info(f"Processed DataFrame for model prediction: \n{processed_feature_df.to_string()}")
+        logger.info(f"Processed DataFrame columns: {processed_feature_df.columns.tolist()}")
+
+        # Validate that the processed features match the expected shape for the model
+        if processed_feature_df.shape[1] != len(MODEL_FEATURE_ORDER):
+            error_detail = (f"Feature count mismatch after processing. Expected {len(MODEL_FEATURE_ORDER)} features, "
+                            f"but got {processed_feature_df.shape[1]}. "
+                            f"Expected: {MODEL_FEATURE_ORDER}, Got: {processed_feature_df.columns.tolist()}")
+            logger.error(error_detail)
+            raise HTTPException(status_code=400, detail=error_detail)
+
+        # Ensure the column order is exactly as expected by the model.
+        # This is handled by `apply_feature_engineering` by selecting `MODEL_FEATURE_ORDER`.
+        processed_feature_df = processed_feature_df[MODEL_FEATURE_ORDER] # Redundant if apply_feature_engineering does it
+
+        # Perform prediction
+        start_time = time.perf_counter()
+        
+        # `predict_proba` returns probabilities for each class (e.g., [prob_not_fraud, prob_fraud])
+        # We assume binary classification here. `[0]` takes the first (and only) prediction.
+        prediction_proba = model.predict_proba(processed_feature_df)[0].tolist() 
+        
+        # `predict` returns the predicted class (e.g., 0 for not fraud, 1 for fraud)
+        prediction_class = int(model.predict(processed_feature_df)[0])
+        
+        end_time = time.perf_counter()
+        latency = (end_time - start_time) * 1000 # Convert to milliseconds
+
+        logger.info(f"Prediction successful: Class={prediction_class}, Probabilities={prediction_proba}, Latency={latency:.2f} ms")
+
+        return {
+            "prediction_class": prediction_class,
+            "prediction_probabilities": prediction_proba,
+            "latency_ms": latency
+        }
+
+    except KeyError as e:
+        logger.error(f"Missing expected feature in the input transaction or during processing: {e}")
+        raise HTTPException(status_code=400, detail=f"Missing expected data for feature: {e}. Please ensure all required transaction fields are provided.")
     except Exception as e:
-        print(f"Error during prediction: {e}")
-        return {"error": "Prediction failed due to model error.", "details": str(e), "status": "error"}, 500
+        logger.error(f"An unexpected error occurred during prediction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An internal server error occurred during prediction. Details: {e}")
 
 
-    return {"is_fraud_prediction": prediction, "fraud_probability": prediction_proba, "status": "success"}
+@app.get("/get-next-transaction")
+async def get_next_transaction():
+    """Returns the next row from the production dataset for frontend display."""
+    global production_dataset
 
-# This block is for local development/testing only
-if __name__ == "__main__":
-    import uvicorn
-    print(f"[{__name__}] Running FastAPI app directly for local development...")
-    # For local testing, you might need to ensure MLFLOW_MODEL_URI points to a local path
-    # or a local MLflow server with the model registered.
-    # Example for local run artifact:
-    # os.environ["MLFLOW_MODEL_URI"] = "mlruns/0/abcdef1234567890abcdef1234567890/artifacts/xgboost_model"
-    # Example for a local registered model:
-    # os.environ["MLFLOW_MODEL_URI"] = "models:/XGBoostFraudDetector/Production"
-    # Ensure you have the necessary MLflow artifacts and folders accessible if using local paths.
+    if production_dataset.empty:
+        raise HTTPException(status_code=404, detail="No more transactions in the production dataset.")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Get the first row, convert to dictionary, then remove it from the dataset
+    next_row = production_dataset.iloc[0].to_dict()
+    production_dataset = production_dataset.iloc[1:].reset_index(drop=True)
+    
+    return {"transaction": next_row}
+
+@app.get("/monitoring")
+async def get_monitoring_data():
+    """Returns current model monitoring metrics."""
+    # Calculate average latency
+    avg_latency = sum(monitoring_data[Config.PREDICTION_LATENCY_KEY]) / len(monitoring_data[Config.PREDICTION_LATENCY_KEY]) \
+                  if monitoring_data[Config.PREDICTION_LATENCY_KEY] else 0
+
+    return {
+        "total_predictions": monitoring_data[Config.PREDICTION_COUNT_KEY],
+        "prediction_distribution": dict(monitoring_data[Config.PREDICTION_DISTRIBUTION_KEY]),
+        "average_latency_ms": avg_latency,
+        "current_production_data_remaining": len(production_dataset)
+    }

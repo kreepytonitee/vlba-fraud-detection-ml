@@ -59,6 +59,6 @@ jobs:
     - name: Trigger Cloud Build
       run: |
         gcloud builds submit --config cloudbuild.yml . \
-          --substitutions=CLOUD_RUN_REGION=${{ secrets.CLOUD_RUN_REGION }},GCS_DATA_BUCKET=${{ secrets.GCS_DATA_BUCKET }},GCS_MODEL_BUCKET=${{ secrets.GCS_MODEL_BUCKET }},GIT_TAG=${{ env.GIT_TAG }}
+          --substitutions=_CLOUD_RUN_REGION=${{ secrets.CLOUD_RUN_REGION }},_GCS_DATA_BUCKET=${{ secrets.GCS_DATA_BUCKET }},_GCS_MODEL_BUCKET=${{ secrets.GCS_MODEL_BUCKET }},_GIT_TAG=${{ env.GIT_TAG }}
       env:
         GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} # Pass project ID as env var to gcloud command if needed

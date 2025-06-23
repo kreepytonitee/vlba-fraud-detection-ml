@@ -28,7 +28,7 @@ jobs:
         # and configure the GitHub OIDC provider for your project.
         # https://github.com/google-github-actions/auth#authenticating-with-workload-identity-federation
         # Replace `your-service-account-email` with your actual service account email.
-        service_account: artifact-registry-access@vlba-fraud-detection.iam.gserviceaccount.com
+        # service_account: artifact-registry-access@vlba-fraud-detection.iam.gserviceaccount.com
         service_account_key: ${{ secrets.GCP_SA_KEY }} # Fallback for non-WIF, or if you prefer SA key
 
     - name: Authorize Docker for GCR

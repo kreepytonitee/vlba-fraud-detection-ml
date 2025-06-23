@@ -5,3 +5,6 @@
   uvicorn # For FastAPI
   fastapi # For API serving
 #  faker # For data simulation
+  joblib
+  google-cloud-storage
+  pydantic # For FastAPI's BaseModel

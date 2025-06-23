@@ -1,30 +1,59 @@
 steps:
+# Step 1: Build the Docker image
+# Encapsulates the ML model, preprocessing logic, and API server (e.g., FastAPI) into a portable Docker image.
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'europe-west10-docker.pkg.dev/$PROJECT_ID/fraud-detection-repo/fraud-detector-api:latest', '.']
-  dir: 'src/app' # Adjust if your Dockerfile is not in the root
+  id: Build
+  args:
+  - 'build'
+  - '-t'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:${_GIT_TAG}' # Use _GIT_TAG for versioning
+  - '-t'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest' # Also tag as latest
+  - '.'
+
+# Step 2: Push the Docker image to Google Container Registry
+# Persists the built image
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'europe-west10-docker.pkg.dev/$PROJECT_ID/fraud-detection-repo/fraud-detector-api:latest']
-# Add steps for running tests, model training, and deployment below
-# For training (example - assuming your training script can run via Docker)
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['run', 'europe-west10-docker.pkg.dev/$PROJECT_ID/fraud-detection-repo/fraud-detector-training:latest', 'python', 'train.py'] # If you have a separate training image
-  env:
-    - 'MLFLOW_TRACKING_URI=gs://vlba-fraud-detection-mlflow-artifacts' # Point to GCS for MLflow
-  timeout: '1200s' # Adjust timeout for training
-# For Cloud Run deployment
+  id: Push
+  args:
+  - 'push'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app'
+
+# Step 3: Deploy to Cloud Run
+# Note: Ensure Cloud Run API is enabled and Cloud Build service account has Cloud Run Admin role.
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: Deploy
   entrypoint: gcloud
   args:
   - 'run'
   - 'deploy'
-  - 'fraud-detector-service' # Name for your Cloud Run service
+  - 'fraud-detection-service' # Name of your Cloud Run service
   - '--image'
-  - 'europe-west10-docker.pkg.dev/$PROJECT_ID/fraud-detection-repo/fraud-detector-api:latest'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest'
   - '--region'
-  - 'europe-west10'
+  - '${_CLOUD_RUN_REGION}' # Region for Cloud Run deployment (e.g., europe-west1)
   - '--platform'
   - 'managed'
-  - '--allow-unauthenticated' # Only for public facing API, otherwise consider IAP
-  - '--port=8080' # Or whatever your FastAPI app listens on
-  # Add environment variables for your application, e.g., MLFLOW_MODEL_URI
-  - '--set-env-vars=MLFLOW_MODEL_URI=models:/XGBoostFraudDetector/Production'
+  - '--allow-unauthenticated' # Allow unauthenticated access for static site to call
+  - '--set-env-vars' # Set environment variables
+  - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET},GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET},BACKEND_SERVICE_URL=https://fraud-detection-service-${_CLOUD_RUN_REGION}.run.app' # This URL needs to be dynamic or set after deployment if not fixed.
+                                                                                                        # For CI/CD, if you know the service name and region, you can construct it.
+                                                                                                        # Cloud Run provides the SERVICE_URL env var at runtime, but we need it for frontend.
+                                                                                                        # If using Cloud Build, consider fetching the URL after deployment, or hardcoding if fixed.
+                                                                                                        # For CI/CD, we'll hardcode based on known service name and region.
+                                                                                                        # A more robust solution might involve Cloud Deploy or manual update.
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _CLOUD_RUN_REGION: 'europe-west10' # Default region, override in trigger if needed
+  _GCS_DATA_BUCKET: 'vlba-fd-data' # Replace with your actual data bucket
+  _GCS_MODEL_BUCKET: 'vlba-fd-model' # Replace with your actual model bucket
+  _GIT_TAG: 'latest' # Default tag if not provided by trigger (e.g., for manual builds)
+
+# Example of how to add tests (optional)
+# - name: 'python'
+#   id: Test
+#   entrypoint: python
+#   args: ['-m', 'pytest']
+#   dir: 'src' # Assuming your tests are in src or a dedicated tests directory

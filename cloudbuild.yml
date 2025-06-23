@@ -1,3 +1,9 @@
+substitutions:
+  _CLOUD_RUN_REGION: 'europe-west10' # Default region, override in trigger if needed
+  _GCS_DATA_BUCKET: 'vlba-fd-data' # Replace with your actual data bucket
+  _GCS_MODEL_BUCKET: 'vlba-fd-model' # Replace with your actual model bucket
+  _GIT_TAG: 'latest' # Default tag if not provided by trigger (e.g., for manual builds)
+
 steps:
 # Step 1: Build the Docker image
 # Encapsulates the ML model, preprocessing logic, and API server (e.g., FastAPI) into a portable Docker image.
@@ -45,11 +51,6 @@ steps:
 options:
   logging: CLOUD_LOGGING_ONLY
 
-substitutions:
-  _CLOUD_RUN_REGION: 'europe-west10' # Default region, override in trigger if needed
-  _GCS_DATA_BUCKET: 'vlba-fd-data' # Replace with your actual data bucket
-  _GCS_MODEL_BUCKET: 'vlba-fd-model' # Replace with your actual model bucket
-  _GIT_TAG: 'latest' # Default tag if not provided by trigger (e.g., for manual builds)
 
 # Example of how to add tests (optional)
 # - name: 'python'

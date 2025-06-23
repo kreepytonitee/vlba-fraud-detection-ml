@@ -6,9 +6,9 @@ steps:
   args:
   - 'build'
   - '-t'
-  - 'gcr.io/${PROJECT_ID}/fraud-detection-app:${_GIT_TAG}' # Use _GIT_TAG for versioning
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:${_GIT_TAG}' # Use _GIT_TAG for versioning
   - '-t'
-  - 'gcr.io/${PROJECT_ID}/fraud-detection-app:latest' # Also tag as latest
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest' # Also tag as latest
   - '.'
 
 # Step 2: Push the Docker image to Google Container Registry
@@ -17,7 +17,7 @@ steps:
   id: Push
   args:
   - 'push'
-  - 'gcr.io/${PROJECT_ID}/fraud-detection-app'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app'
 
 # Step 3: Deploy to Cloud Run
 # Note: Ensure Cloud Run API is enabled and Cloud Build service account has Cloud Run Admin role.
@@ -29,7 +29,7 @@ steps:
   - 'deploy'
   - 'fraud-detection-service' # Name of your Cloud Run service
   - '--image'
-  - 'gcr.io/${PROJECT_ID}/fraud-detection-app:latest'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest'
   - '--region'
   - '${_CLOUD_RUN_REGION}' # Region for Cloud Run deployment (e.g., europe-west1)
   - '--platform'

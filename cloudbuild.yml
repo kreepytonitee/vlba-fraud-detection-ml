@@ -33,7 +33,7 @@ steps:
   args:
   - 'run'
   - 'deploy'
-  - 'fraud-detection-api' # Name of your Cloud Run service
+  - 'fraud-detection-service' # Name of your Cloud Run service
   - '--image'
   - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest'
   - '--region'

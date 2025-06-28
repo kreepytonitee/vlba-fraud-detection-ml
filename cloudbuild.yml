@@ -33,7 +33,7 @@ steps:
   args:
   - 'run'
   - 'deploy'
-  - 'fraud-detection-service' # Name of your Cloud Run service
+  - 'fraud-detection-api' # Name of your Cloud Run service
   - '--image'
   - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest'
   - '--region'
@@ -42,7 +42,7 @@ steps:
   - 'managed'
   - '--allow-unauthenticated' # Allow unauthenticated access for static site to call
   - '--set-env-vars' # Set environment variables
-  - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET},GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET},BACKEND_SERVICE_URL=https://fraud-detection-service-${_CLOUD_RUN_REGION}.run.app' # This URL needs to be dynamic or set after deployment if not fixed.
+  - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET},GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET},BACKEND_SERVICE_URL=https://fraud-detection-api-${_CLOUD_RUN_REGION}.run.app' # This URL needs to be dynamic or set after deployment if not fixed.
                                                                                                         # For CI/CD, if you know the service name and region, you can construct it.
                                                                                                         # Cloud Run provides the SERVICE_URL env var at runtime, but we need it for frontend.
                                                                                                         # If using Cloud Build, consider fetching the URL after deployment, or hardcoding if fixed.

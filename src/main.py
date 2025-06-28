@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware # Import CORSMiddleware
+
 from pydantic import BaseModel, Field
 import joblib
 import json
@@ -18,6 +20,25 @@ app = FastAPI(
     title="Fraud Detection API",
     description="API for detecting fraudulent bank transactions."
 )
+
+# --- CORS Configuration ---
+# IMPORTANT: Adjust 'allow_origins' in production for security.
+# For development/showcase, '*' is often used, but specify your frontend URL
+# (e.g., "https://your-website-bucket-name.storage.googleapis.com") for production.
+origins = [
+    "https://storage.googleapis.com/vlba-fd-frontend/index.html" # Allows all origins for development/testing.
+    # Replace "*" with your actual static website URL for production security:
+    # "https://your-website-bucket-name.storage.googleapis.com"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"], # Allows GET, POST, etc.
+    allow_headers=["*"], # Allows all headers
+)
+# --- End CORS Configuration ---
 
 # Global variables for model and monitoring
 model = None

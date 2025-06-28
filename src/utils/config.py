@@ -1,5 +1,5 @@
 import os
-from logger import logger
+from src.utils.logger import logger
 
 class Config:
     # GCS Bucket where the raw dataset is stored

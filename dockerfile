@@ -16,12 +16,13 @@
 
   # Copy the entire src directory (including its subdirectories and __init__.py files)
   # This is a more robust way to ensure all your modules are copied correctly.
-  COPY src/ ./src/
-
+  COPY ./src ./src
+  ENV PYTHONPATH=/app
+  
   # Expose the port your FastAPI application will listen on
   EXPOSE 8080
 
   # Run the application using Uvicorn (ASGI server for FastAPI)
   # Use 0.0.0.0 to make it accessible from outside the container
-  # --host 0.0.0.0 --port 8*** tells uvicorn to listen on all interfaces on port 8***
-  CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+  # --host 0.0.0.0 --port 8080 tells uvicorn to listen on all interfaces on port 8080
+  CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]

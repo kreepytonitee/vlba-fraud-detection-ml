@@ -1,81 +1,56 @@
 import pandas as pd
-import mlflow.pyfunc
-import json
+import joblib
 import os
+from src.features.feature_engineering import apply_feature_engineering
 
-# Global variables for model and feature columns
-_model = None
-_feature_columns = None
-_mlflow_model_uri = os.environ.get("MLFLOW_MODEL_URI", "models:/XGBoostFraudDetector/latest")
-_feature_columns_path = "feature_columns.json" # Assumed to be available in the container
-
-def load_model_and_features():
-    """Loads the MLflow model and feature columns into global variables."""
-    global _model, _feature_columns
-    if _model is None:
-        _model = mlflow.pyfunc.load_model(_mlflow_model_uri)
-        print(f"Model loaded from: {_mlflow_model_uri}")
-    if _feature_columns is None:
-        # In a deployed setting, feature_columns.json should be part of the artifact
-    # or retrieved from a known location. For local Flask/FastAPI, ensure it's copied.
-        if not os.path.exists(_feature_columns_path):
-            # Fallback for local testing, if not copied, assumes a basic set
-            print(f"Warning: {_feature_columns_path} not found. Using a dummy feature set for testing.")
-            _feature_columns = ['amount_sent', 'amount_received', 'amount_diff', 'amount_ratio',
-                                'hour_of_day', 'day_of_week', 'month', 'is_weekend']
-        else:
-            with open(_feature_columns_path, "r") as f:
-                _feature_columns = json.load(f)
-        print(f"Feature columns loaded: {_feature_columns}")
-
-def preprocess_and_predict(input_data: dict) -> float:
+def predict_fraud(data_path: str, model_path: str) -> pd.DataFrame:
     """
-    Preprocesses incoming single transaction data and makes a prediction.
-    Assumes input_data keys match original CSV columns.
+    Loads a trained fraud classification model and makes predictions on new data.
+    Args:
+        data_path (str): Path to the new data CSV file for prediction.
+        model_path (str): Path to the trained model (.joblib file).
+    Returns:
+        pd.DataFrame: DataFrame with original data and 'Predicted_Is_Laundering' column.
     """
-    if _model is None or _feature_columns is None:
-        load_model_and_features()
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at {model_path}. Please train the model first.")
 
-    # Convert input dict to DataFrame
-    df = pd.DataFrame([input_data])
+    # Load the trained model
+    model = joblib.load(model_path)
+    print(f"Model loaded successfully from {model_path}")
 
-    # Ensure 'date_time' is datetime object
-    if 'date_time' in df.columns and not pd.api.types.is_datetime64_any_dtype(df['date_time']):
-        df['date_time'] = pd.to_datetime(df['date_time'])
+    # Load new data
+    df_new = pd.read_csv(data_path)
 
-    # Apply the same feature engineering as during training
-    from features.feature_engineering_H import apply_feature_engineering
-    processed_df = apply_feature_engineering(df.copy())
+    # Apply the same feature engineering steps
+    df_processed = apply_feature_engineering(df_new.copy())
 
-    # Handle categorical columns (one-hot encode as done in training)
-    categorical_cols = processed_df.select_dtypes(include=['object', 'category']).columns
-    if not categorical_cols.empty:
-        processed_df = pd.get_dummies(processed_df, columns=list(categorical_cols), drop_first=True)
+    # Prepare features for prediction
+    X_predict = df_processed.drop(columns=['Unnamed: 0', 'Timestamp', 'Is Laundering', 'From Bank', 'Account', 'To Bank', 'Account.1'], errors='ignore')
 
-    # Select and reindex columns to match the model's expected feature set
-    # Fill missing columns (e.g., if a new bank_pair appears) with 0
-    final_features_df = processed_df.reindex(columns=_feature_columns, fill_value=0)
+    # Ensure all columns used during training are present, fill missing with 0 (or appropriate value)
+    # This assumes that all features engineered during training are present in new data after feature engineering.
+    # In a production system, a more robust feature alignment strategy would be needed.
+    train_features = model.feature_names_in_
+    for col in train_features:
+        if col not in X_predict.columns:
+            X_predict[col] = 0 # Or the mean/median from training data
+    X_predict = X_predict[train_features] # Ensure column order is consistent
 
-    # Make prediction
-    prediction_proba = _model.predict_proba(final_features_df)[:, 1][0]
-    return float(prediction_proba)
+    # Handle potential NaN values introduced by mapping
+    X_predict = X_predict.fillna(0)
 
-if __name__ == "__main__":
-    # Example usage for local testing
-    load_model_and_features() # Ensure model and features are loaded
+    # Make predictions
+    df_new['Predicted_Is_Laundering'] = model.predict(X_predict)
 
-    sample_transaction = {
-        'amount_sent': 120, 'amount_received': 115, 'date_time': '2025-06-19 14:30:00',
-        'currency_sent': 'USD', 'currency_received': 'USD', 'bank_sender': 'BankA', 'bank_receiver': 'BankX'
-    }
+    return df_new
 
-    # Assuming you have a trained model available via MLFLOW_MODEL_URI
-    # For a truly local test, you might need to mock MLflow or ensure the model is downloaded.
-    # For this example, if the model isn't found, it will print an error.
+if __name__ == '__main__':
+    training_data_file = 'transactions_train.csv'
+    model_output_file = 'fraud_detection_model.joblib'
 
-    try:
-        fraud_probability = preprocess_and_predict(sample_transaction)
-        print(f"Fraud probability for sample transaction: {fraud_probability:.4f}")
-    except Exception as e:
-        print(f"Error during prediction: {e}")
-        print("Please ensure MLFLOW_MODEL_URI environment variable is set or model is available.")
+    # Example of how to use the predict_fraud function with the same data for demonstration
+    # In a real scenario, you would pass new, unseen data to predict_fraud
+    print("\n--- Running Prediction Example ---")
+    predictions_df = predict_fraud(training_data_file, model_output_file)
+    print(predictions_df[['Timestamp', 'Amount Paid', 'Is Laundering', 'Predicted_Is_Laundering']].head())

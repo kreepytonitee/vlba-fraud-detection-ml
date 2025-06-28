@@ -12,8 +12,6 @@ from google.cloud import storage
 from collections import Counter
 from src.utils.config import Config
 from src.utils.logger import logger
-from src.data_preparation.data_ingestion import load_data_from_gcs
-from src.data_preparation.data_preprocessing import process_and_split_data
 from src.features.feature_engineering import apply_feature_engineering # Import the function
 
 app = FastAPI(
@@ -23,14 +21,13 @@ app = FastAPI(
 
 # Global variables for model and monitoring
 model = None
-with open("data/feature_columns.json", "r") as f:
-    MODEL_FEATURE_ORDER = json.load(f)
 production_dataset: pd.DataFrame = pd.DataFrame()
 monitoring_data = {
     Config.PREDICTION_COUNT_KEY: 0,
     Config.PREDICTION_DISTRIBUTION_KEY: Counter(),
     Config.PREDICTION_LATENCY_KEY: [] # Store latencies to calculate average
 }
+MODEL_FEATURE_ORDER = [] # Initialize as an empty list
 
 # Define your transaction features here based on your dataset
 class Transaction(BaseModel):
@@ -65,6 +62,24 @@ def load_model_from_gcs():
         logger.error(f"Error loading model from GCS: {e}")
         raise
 
+# Helper to load feature columns for model
+def load_feature_columns_for_model_from_gcs():
+    """Loads the list of feature columns from a JSON file in Google Cloud Storage."""
+    global MODEL_FEATURE_ORDER
+    client = storage.Client()
+    bucket = client.get_bucket(Config.GCS_MODEL_BUCKET) # Assuming feature file is in the model bucket
+    blob = bucket.blob(Config.GCS_FEATURE_FILE)
+
+    try:
+        feature_bytes = blob.download_as_bytes()
+        # Decode bytes to string and then parse JSON
+        MODEL_FEATURE_ORDER = json.loads(feature_bytes.decode('utf-8'))
+        logger.info(f"Successfully loaded feature columns from gs://{Config.GCS_MODEL_BUCKET}/{Config.GCS_FEATURE_FILE}")
+        logger.info(f"Loaded feature order: {MODEL_FEATURE_ORDER}")
+    except Exception as e:
+        logger.error(f"Error loading feature columns from GCS: {e}")
+        raise
+
 # Helper to load production dataset
 def load_production_data_from_gcs():
     """Loads data from Google Cloud Storage."""
@@ -87,6 +102,7 @@ def load_production_data_from_gcs():
 async def startup_event():
     logger.info("Starting up application...")
     load_model_from_gcs()
+    load_feature_columns_for_model_from_gcs()
     load_production_data_from_gcs() # Load production data when app starts
 
 # --- Health Check Endpoint (Recommended for Cloud Deployments) ---

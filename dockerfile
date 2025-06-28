@@ -24,4 +24,4 @@
   # Run the application using Uvicorn (ASGI server for FastAPI)
   # Use 0.0.0.0 to make it accessible from outside the container
   # --host 0.0.0.0 --port 8*** tells uvicorn to listen on all interfaces on port 8***
-  CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
+  CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -53,7 +53,7 @@ MODEL_FEATURE_ORDER = [] # Initialize as an empty list
 
 # Define your transaction features here based on your dataset
 class Transaction(BaseModel):
-    # Field(alias="Unnamed: int64") can be used if you absolutely need to keep original name
+    transaction_id: int = Field(alias="Unnamed: 0")
     timestamp: str = Field(alias="Timestamp") 
     from_bank: int = Field(alias="From Bank")
     account: str = Field(alias="Account")

@@ -26,7 +26,7 @@ app = FastAPI(
 # For development/showcase, '*' is often used, but specify your frontend URL
 # (e.g., "https://your-website-bucket-name.storage.googleapis.com") for production.
 origins = [
-    "https://storage.googleapis.com/vlba-fd-frontend/",
+    "https://storage.googleapis.com",
     "https://storage.cloud.google.com" # Allows all origins for development/testing.
     # Replace "*" with your actual static website URL for production security:
     # "https://your-website-bucket-name.storage.googleapis.com"

@@ -54,16 +54,16 @@ MODEL_FEATURE_ORDER = [] # Initialize as an empty list
 # Define your transaction features here based on your dataset
 class Transaction(BaseModel):
     # Field(alias="Unnamed: int64") can be used if you absolutely need to keep original name
-    timestamp: str
-    from_bank: int
-    account: str
-    to_bank: int
-    account_to: str = Field(alias="account_1")
-    amount_received: float
-    receiving_currency: str
-    amount_paid: float
-    payment_currency: str
-    payment_format: str
+    timestamp: str = Field(alias="Timestamp") 
+    from_bank: int = Field(alias="From Bank")
+    account: str = Field(alias="Account")
+    to_bank: int = Field(alias="To Bank")
+    account_to: str = Field(alias="Account.1")
+    amount_received: float = Field(alias="Amount Received")
+    receiving_currency: str = Field(alias="Receiving Currency")
+    amount_paid: float = Field(alias="Amount Paid")
+    payment_currency: str = Field(alias="Payment Currency")
+    payment_format: str = Field(alias="Payment Format")
 
 # Helper to load model from GCS
 def load_model_from_gcs():

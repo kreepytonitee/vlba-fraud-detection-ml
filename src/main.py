@@ -53,52 +53,17 @@ MODEL_FEATURE_ORDER = [] # Initialize as an empty list
 
 # Define your transaction features here based on your dataset
 class Transaction(BaseModel):
-    # # Field(alias="Unnamed: int64") can be used if you absolutely need to keep original name
-    # Timestamp: str
-    # From_Bank: int
-    # Account: str
-    # To_Bank: int
-    # Account_To: str = Field(alias="Account.1") # Renamed from Account.1 for valid Python variable name
-    # Amount_Received: float
-    # Receiving_Currency: str
-    # Amount_Paid: float
-    # Payment_Currency: str
-    # Payment_Format: str
-    # # Is_Laundering: float # Removed: Assuming this is the target variable, not an input feature.
-
-    # Map "Unnamed: 0" from frontend to transaction_id in Python
-    transaction_id: int = Field(alias="Unnamed: 0")
-    
-    # Map "Timestamp" from frontend to timestamp in Python
-    timestamp: datetime = Field(alias="Timestamp") 
-    
-    # Map "From Bank" from frontend to from_bank in Python
-    from_bank: int = Field(alias="From Bank")
-
-    # Map "Account" from frontend to account in Python
-    account: str = Field(alias="Account")
-
-    # Map "To Bank" from frontend to to_bank in Python
-    to_bank: int = Field(alias="To Bank")
-
-    # Map "Account.1" from frontend to account_to in Python
-    account_to: str = Field(alias="Account.1")
-
-    # Map "Amount Received" from frontend to amount_received in Python
-    amount_received: float = Field(alias="Amount Received")
-
-    # Map "Receiving Currency" from frontend to receiving_currency in Python
-    receiving_currency: str = Field(alias="Receiving Currency")
-
-    # Map "Amount Paid" from frontend to amount_paid in Python
-    amount_paid: float = Field(alias="Amount Paid")
-
-    # Map "Payment Currency" from frontend to payment_currency in Python
-    payment_currency: str = Field(alias="Payment Currency")
-
-    # Map "Payment Format" from frontend to payment_format in Python
-    payment_format: str = Field(alias="Payment Format")
-
+    # Field(alias="Unnamed: int64") can be used if you absolutely need to keep original name
+    timestamp: str
+    from_bank: int
+    account: str
+    to_bank: int
+    account_to: str = Field(alias="account_1")
+    amount_received: float
+    receiving_currency: str
+    amount_paid: float
+    payment_currency: str
+    payment_format: str
 
 # Helper to load model from GCS
 def load_model_from_gcs():

@@ -49,10 +49,43 @@ def encode_categorical_columns(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = encoder.transform(df[col])
     return df
 
+PYDANTIC_TO_ORIGINAL_COL_MAP = {
+    "transaction_id": "Unnamed: 0",
+    "timestamp": "Timestamp",
+    "from_bank": "From Bank",
+    "account": "Account",
+    "to_bank": "To Bank",
+    "account_1": "Account.1",
+    "amount_received": "Amount Received",
+    "receiving_currency": "Receiving Currency",
+    "amount_paid": "Amount Paid",
+    "payment_currency": "Payment Currency",
+    "payment_format": "Payment Format"
+    # Make sure all fields from your TransactionData model are covered here
+}
+
+def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
+    # Create the reverse mapping: original_col_name -> pydantic_attr_name
+    original_to_pydantic_map = {
+        original_col_name: pydantic_attr_name
+        for pydantic_attr_name, original_col_name in PYDANTIC_TO_ORIGINAL_COL_MAP.items()
+    }
+
+    # Filter the mapping to only include columns that exist in the DataFrame
+    rename_mapping_for_df = {
+        original_col_name: pydantic_attr_name
+        for original_col_name, pydantic_attr_name in original_to_pydantic_map.items()
+        if original_col_name in df.columns
+    }
+
+    df = df.rename(columns=rename_mapping_for_df)
+    return df
+
 def apply_feature_engineering(df: pd.DataFrame) -> pd.DataFrame:
     """Applies all feature engineering steps."""
     df = create_time_features(df)
     df = create_ratio_features(df)
     df = create_bank_interaction_features(df)
     df = encode_categorical_columns(df)
+    df = rename_columns(df)
     return df

@@ -161,7 +161,8 @@ async def predict(transaction: Transaction):
         # Ensure the column order is exactly as expected by the model.
         # This is handled by `apply_feature_engineering` by selecting `MODEL_FEATURE_ORDER`.
         processed_feature_df = processed_feature_df[MODEL_FEATURE_ORDER] # Redundant if apply_feature_engineering does it
-
+        processed_feature_df = processed_feature_df.drop(columns=['transaction_id', 'timestamp', 'Is Laundering', 'from_bank', 'account', 'to_bank', 'account_1'], errors='ignore')
+        
         # Perform prediction
         start_time = time.perf_counter()
         

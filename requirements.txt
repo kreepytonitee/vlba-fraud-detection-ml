@@ -1,5 +1,7 @@
   pandas
+  numpy
   scikit-learn
+  lightgbm
   xgboost
   mlflow
   uvicorn # For FastAPI
@@ -7,4 +9,6 @@
 #  faker # For data simulation
   joblib
   google-cloud-storage
+  fsspec
+  gcsfs
   pydantic # For FastAPI's BaseModel

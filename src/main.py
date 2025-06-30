@@ -14,7 +14,8 @@ from google.cloud import storage
 from collections import Counter
 from src.utils.config import Config
 from src.utils.logger import logger
-from src.features.feature_engineering import apply_feature_engineering # Import the function
+from src.utils.gcs_utils import load_model_from_gcs, load_feature_columns_for_model_from_gcs, load_production_data_from_gcs
+from src.feature_engineering.production_features import generate_production_features # Import the function
 
 app = FastAPI(
     title="Fraud Detection API",
@@ -65,55 +66,6 @@ class Transaction(BaseModel):
     payment_currency: str = Field(alias="Payment Currency")
     payment_format: str = Field(alias="Payment Format")
 
-# Helper to load model from GCS
-def load_model_from_gcs():
-    """Loads the machine learning model from Google Cloud Storage."""
-    global model
-    client = storage.Client()
-    bucket = client.get_bucket(Config.GCS_MODEL_BUCKET)
-    blob = bucket.blob(Config.GCS_MODEL_FILE)
-
-    try:
-        model_bytes = blob.download_as_bytes()
-        model = joblib.load(io.BytesIO(model_bytes))
-        logger.info(f"Successfully loaded model from gs://{Config.GCS_MODEL_BUCKET}/{Config.GCS_MODEL_FILE}")
-    except Exception as e:
-        logger.error(f"Error loading model from GCS: {e}")
-        raise
-
-# Helper to load feature columns for model
-def load_feature_columns_for_model_from_gcs():
-    """Loads the list of feature columns from a JSON file in Google Cloud Storage."""
-    global MODEL_FEATURE_ORDER
-    client = storage.Client()
-    bucket = client.get_bucket(Config.GCS_MODEL_BUCKET) # Assuming feature file is in the model bucket
-    blob = bucket.blob(Config.GCS_FEATURE_FILE)
-
-    try:
-        feature_bytes = blob.download_as_bytes()
-        # Decode bytes to string and then parse JSON
-        MODEL_FEATURE_ORDER = json.loads(feature_bytes.decode('utf-8'))
-        logger.info(f"Successfully loaded feature columns from gs://{Config.GCS_MODEL_BUCKET}/{Config.GCS_FEATURE_FILE}")
-        logger.info(f"Loaded feature order: {MODEL_FEATURE_ORDER}")
-    except Exception as e:
-        logger.error(f"Error loading feature columns from GCS: {e}")
-        raise
-
-# Helper to load production dataset
-def load_production_data_from_gcs():
-    """Loads data from Google Cloud Storage."""
-    global production_dataset
-    client = storage.Client()
-    bucket = client.get_bucket(Config.GCS_DATA_BUCKET)
-    blob = bucket.blob(Config.GCS_PRODUCTION_DATA_FILE)
-
-    try:
-        production_data_bytes = blob.download_as_bytes()
-        production_dataset = pd.read_csv(io.BytesIO(production_data_bytes))
-        logger.info(f"Successfully loaded production data from gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_PRODUCTION_DATA_FILE}")
-    except Exception as e:
-        logger.error(f"Error loading production data from GCS: {e}")
-        raise
 
 # --- Application Startup Event ---
 # This function runs once when the FastAPI application starts.
@@ -145,7 +97,7 @@ async def predict(transaction: Transaction):
 
         # Apply the same feature engineering logic used during training.
         # This function will handle categorical encoding and feature alignment.
-        processed_feature_df = apply_feature_engineering(input_df)
+        processed_feature_df = generate_production_features(input_df)
         
         logger.info(f"Processed DataFrame for model prediction: \n{processed_feature_df.to_string()}")
         logger.info(f"Processed DataFrame columns: {processed_feature_df.columns.tolist()}")

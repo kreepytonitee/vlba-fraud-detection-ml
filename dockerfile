@@ -2,7 +2,7 @@
   FROM python:3.9-slim-buster
 
   # Set working directory
-  WORKDIR /app
+  WORKDIR /app/src
 
   # Install system dependencies
   RUN apt-get update && apt-get install -y \

@@ -4,8 +4,8 @@ import joblib
 # import json
 import io
 # import os
-from src.utils.config import Config
-from src.utils.logger import logger
+from utils.config import Config
+from utils.logger import logger
 
 # def upload_dataframe_to_gcs(dataframe, bucket_name, destination_blob_name):
 #     """Uploads a pandas DataFrame to GCS as a CSV file."""

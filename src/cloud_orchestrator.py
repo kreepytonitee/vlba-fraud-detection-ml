@@ -1,12 +1,12 @@
 import os
 import sys
 
-# Add the project root to sys.path to enable imports of pipeline modules
-project_root = os.path.abspath(os.path.dirname(__file__))
-sys.path.insert(0, project_root)
+# # Add the project root to sys.path to enable imports of pipeline modules
+# project_root = os.path.abspath(os.path.dirname(__file__))
+# sys.path.insert(0, project_root)
 
 # Import GCS utilities (still needed for checks)
-from utils.gcs_utils import check_gcs_blob_exists
+from src.utils.gcs_utils import check_gcs_blob_exists
 
 # Import core pipeline functions (now GCS-aware)
 from data_preprocessing.data_clean_split import clean_and_split_data
@@ -16,8 +16,8 @@ from models.train_model import train_and_save_model
 from inference.predict import predict_on_production_data
 
 # Import Config for GCS paths
-from utils.config import Config
-from utils.logger import logger
+from src.utils.config import Config
+from src.utils.logger import logger
 
 def run_cloud_pipeline():
     """

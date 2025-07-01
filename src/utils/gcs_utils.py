@@ -1,9 +1,9 @@
 from google.cloud import storage
 import pandas as pd
 import joblib
-import json
+# import json
 import io
-import os
+# import os
 from src.utils.config import Config
 from src.utils.logger import logger
 
@@ -119,8 +119,8 @@ def load_feature_columns_for_model_from_gcs():
 
     try:
         feature_bytes = blob.download_as_bytes()
-        # Decode bytes to string and then parse JSON
-        MODEL_FEATURE_ORDER = json.loads(feature_bytes.decode('utf-8'))
+        # Decode bytes to string and then parse file
+        MODEL_FEATURE_ORDER = feature_bytes.decode('utf-8').splitlines()
         logger.info(f"Successfully loaded feature columns from gs://{Config.GCS_MODEL_BUCKET}/{Config.GCS_FEATURE_COLUMNS_FILE}")
         logger.info(f"Loaded feature order: {MODEL_FEATURE_ORDER}")
     except Exception as e:

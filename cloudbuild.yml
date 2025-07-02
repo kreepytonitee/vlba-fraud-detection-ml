@@ -8,8 +8,8 @@ substitutions:
 steps:
 # Step 1: Set up Python environment and install dependencies for the ML pipeline
 # This step ensures all necessary Python packages are available to run cloud_orchestrator.py
-- name: 'python'
-  id: Setup Python Environment for ML Pipeline
+- name: 'python:3.12'  # Changed from 'python' to 'python:3.12'
+  id: 'Setup Python Environment for ML Pipeline'  # Added quotes around ID
   entrypoint: python
   args:
   - '-m'
@@ -24,8 +24,8 @@ steps:
 # This step runs the cloud_orchestrator.py script, which performs
 # data preprocessing, feature engineering, and model training,
 # storing artifacts directly in GCS.
-- name: 'python'
-  id: Run ML Pipeline
+- name: 'python:3.12'  # Changed from 'python' to 'python:3.12'
+  id: 'Run ML Pipeline'  # Added quotes around ID
   entrypoint: python
   args:
   - './cloud_orchestrator.py'

@@ -13,10 +13,10 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from google.cloud import storage
 from collections import Counter
-from utils.config import Config
-from utils.logger import logger
-from utils.gcs_utils import load_model_from_gcs, load_feature_columns_for_model_from_gcs, load_production_data_from_gcs
-from feature_engineering.production_features import generate_production_features # Import the function
+from src.utils.config import Config
+from src.utils.logger import logger
+from src.utils.gcs_utils import load_model_from_gcs, load_feature_columns_for_model_from_gcs, load_production_data_from_gcs
+from src.feature_engineering.production_features import generate_production_features # Import the function
 
 app = FastAPI(
     title="Fraud Detection API",

@@ -6,18 +6,18 @@ import sys
 # sys.path.insert(0, project_root)
 
 # Import GCS utilities (still needed for checks)
-from utils.gcs_utils import check_gcs_blob_exists
+from src.utils.gcs_utils import check_gcs_blob_exists
 
 # Import core pipeline functions (now GCS-aware)
-from data_preprocessing.data_clean_split import clean_and_split_data
-from feature_engineering.train_features import generate_training_features
-from feature_engineering.production_features import generate_production_features
-from models.train_model_mlflow import train_and_save_model
-from inference.predict import predict_on_production_data
+from src.data_preprocessing.data_clean_split import clean_and_split_data
+from src.feature_engineering.train_features import generate_training_features
+from src.feature_engineering.production_features import generate_production_features
+from src.models.train_model_mlflow import train_and_save_model
+from src.inference.predict import predict_on_production_data
 
 # Import Config for GCS paths
-from utils.config import Config
-from utils.logger import logger
+from src.utils.config import Config
+from src.utils.logger import logger
 
 def run_cloud_pipeline():
     """

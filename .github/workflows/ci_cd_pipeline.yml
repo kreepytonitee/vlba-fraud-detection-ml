@@ -67,3 +67,11 @@ jobs:
       run: |
         TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo ${{ github.sha }})
         echo "GIT_TAG=$TAG" >> $GITHUB_ENV
+
+    - name: Trigger Cloud Build
+      run: |
+        gcloud builds submit --config cloudbuild.yml . \
+          --substitutions=_CLOUD_RUN_REGION=${{ secrets.CLOUD_RUN_REGION }},_GCS_DATA_BUCKET=${{ secrets.GCS_DATA_BUCKET }},_GCS_MODEL_BUCKET=${{ secrets.GCS_MODEL_BUCKET }},_GIT_TAG=${{ env.GIT_TAG }},_GCS_LOOKUPS_BUCKET=${{ secrets.GCS_LOOKUPS_BUCKET }}
+      env:
+        CLOUDSDK_CORE_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}

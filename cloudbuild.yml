@@ -71,4 +71,4 @@ steps:
 
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: 'E2_STANDARD_4'  # Standard machine for deployment
+  # machineType: 'E2_STANDARD_4'  # Standard machine for deployment

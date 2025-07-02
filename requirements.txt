@@ -12,3 +12,4 @@
   fsspec
   gcsfs
   pydantic # For FastAPI's BaseModel
+  pyngrok 

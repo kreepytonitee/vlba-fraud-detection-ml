@@ -1,7 +1,7 @@
 from google.cloud import storage
 import pandas as pd
 import joblib
-# import json
+import json
 import io
 # import os
 from src.utils.config import Config
@@ -65,3 +65,37 @@ def check_gcs_blob_exists(bucket_name, blob_name):
     blob = bucket.blob(blob_name)
     return blob.exists()
 
+# Helper to write json file
+def upload_json_to_gcs(data: Union[Dict[str, Any], list], bucket_name: str, blob_name: str) -> bool:
+    """
+    Upload JSON data to Google Cloud Storage
+    
+    Args:
+        data: Dictionary or list to be converted to JSON
+        bucket_name: Name of the GCS bucket
+        blob_name: Path/name of the blob in the bucket
+        
+    Returns:
+        True if upload successful, False otherwise
+    """
+    try:
+        # Initialize GCS client
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        
+        # Convert data to JSON string
+        json_string = json.dumps(data, indent=2, default=str)
+        
+        # Upload to GCS
+        blob.upload_from_string(
+            json_string,
+            content_type='application/json'
+        )
+        
+        logger.info(f"Successfully uploaded JSON to gs://{bucket_name}/{blob_name}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to upload JSON to gs://{bucket_name}/{blob_name}: {e}")
+        return False

@@ -1,0 +1,62 @@
+# cloudbuild-training.yml
+# This pipeline ONLY trains models and saves them to GCS
+# Triggered: Manually, on schedule, or when training data changes
+
+substitutions:
+  _GCS_DATA_BUCKET: 'vlba-fd-data-bucket'
+  _GCS_MODEL_BUCKET: 'vlba-fd-model-bucket' 
+  _GCS_LOOKUPS_BUCKET: 'vlba-fd-lookups-bucket'
+  _MODEL_VERSION: '${BUILD_ID}' # Use build ID as model version
+  
+steps:
+# Step 1: Build the ML Training Docker image
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Build Training Image'
+  args:
+  - 'build'
+  - '-f'
+  - 'dockerfile'  # Use your existing dockerfile
+  - '-t'
+  - 'ml-training:${BUILD_ID}'
+  - '.'
+
+# Step 2: Run Model Training using your existing cloud_orchestrator.py
+- name: 'ml-training:${BUILD_ID}'
+  id: 'Train Model'
+  entrypoint: 'python'
+  args: ['src/cloud_orchestrator.py']
+  env:
+    - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET}'
+    - 'GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET}'
+    - 'GCS_LOOKUPS_BUCKET=${_GCS_LOOKUPS_BUCKET}'
+    - 'MODEL_VERSION=${_MODEL_VERSION}'
+    - 'GOOGLE_CLOUD_PROJECT=${PROJECT_ID}'
+    - 'BUILD_ID=${BUILD_ID}'
+    - 'TRAINING_MODE=true'  # Flag to indicate training mode
+  timeout: '3600s'  # 1 hour for training
+
+# Step 3: Model Validation using your inference module
+- name: 'ml-training:${BUILD_ID}'
+  id: 'Validate Model'
+  entrypoint: 'python'
+  args: ['-c', 'from src.inference.predict import validate_model; validate_model()']
+  env:
+    - 'GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET}'
+    - 'MODEL_VERSION=${_MODEL_VERSION}'
+  timeout: '600s'
+
+# Step 4: Update model registry with new model info
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: 'Update Model Registry'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    echo "Model ${_MODEL_VERSION} trained successfully at $(date)" > model_info.txt
+    echo "Build ID: ${BUILD_ID}" >> model_info.txt
+    gsutil cp model_info.txt gs://${_GCS_MODEL_BUCKET}/registry/latest_model.txt
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHMEM_16'  # High memory for ML training
+  diskSizeGb: 100

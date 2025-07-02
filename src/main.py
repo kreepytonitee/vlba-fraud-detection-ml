@@ -114,21 +114,65 @@ async def startup_event():
     global model, production_dataset, original_production_dataset, MODEL_FEATURE_ORDER, server_monitoring_data
     logger.info("Starting up application...")
 
-    # ASSIGN THE RETURN VALUES TO THE GLOBAL VARIABLES
-    model = load_model_from_gcs()
-    MODEL_FEATURE_ORDER = load_feature_columns_for_model_from_gcs()
-    production_dataset = load_production_data_from_gcs() # Load production data when app starts
-    original_production_dataset = production_dataset.copy()  # Keep original for restart
-    
-    # Initialize server monitoring start time
-    server_monitoring_data["start_time"] = time.time()
+    try:
+        # Load model with retry logic for Cloud Run deployment
+        model = load_model_from_gcs()
+        if model is None:
+            logger.error("Failed to load model during startup")
+            # In production, you might want to fail fast or load a fallback model
+            
+        MODEL_FEATURE_ORDER = load_feature_columns_for_model_from_gcs()
+        if not MODEL_FEATURE_ORDER:
+            logger.error("Failed to load feature columns during startup")
+            
+        production_dataset = load_production_data_from_gcs()
+        original_production_dataset = production_dataset.copy()
+        
+        # Initialize server monitoring start time
+        server_monitoring_data["start_time"] = time.time()
+        
+        logger.info(f"Startup completed successfully. Model loaded: {model is not None}, "
+                   f"Feature columns: {len(MODEL_FEATURE_ORDER)}, "
+                   f"Production data rows: {len(production_dataset)}")
+                   
+    except Exception as e:
+        logger.error(f"Startup failed: {e}")
+        # In production, you might want to exit here
+        # raise e
 
 # --- Health Check Endpoint (Recommended for Cloud Deployments) ---
 # This endpoint can be used by deployment platforms (like Cloud Run) to check
 # if the application is healthy and ready to receive requests.
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "model_loaded": model is not None, "production_data_loaded": not production_dataset.empty}
+    """Enhanced health check for Cloud Run deployment"""
+    health_status = {
+        "status": "ok" if model is not None else "degraded",
+        "model_loaded": model is not None,
+        "production_data_loaded": not production_dataset.empty,
+        "feature_columns_loaded": len(MODEL_FEATURE_ORDER) > 0,
+        "uptime_seconds": time.time() - server_monitoring_data["start_time"]
+    }
+    
+    # Return 503 if critical components failed to load
+    if not health_status["model_loaded"]:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+        
+    return health_status
+
+# --- Endpoint to check deployment info ---
+@app.get("/deployment-info")
+async def get_deployment_info():
+    """Get information about the current deployment"""
+    return {
+        "service_name": "fraud-detection-api",
+        "environment": "cloud-run" if os.getenv('K_SERVICE') else "local",
+        "build_id": os.getenv('BUILD_ID', 'unknown'),
+        "revision": os.getenv('K_REVISION', 'unknown'),
+        "service": os.getenv('K_SERVICE', 'unknown'),
+        "region": os.getenv('GOOGLE_CLOUD_REGION', 'unknown'),
+        "project": os.getenv('GOOGLE_CLOUD_PROJECT', 'unknown')
+    }
 
 # --- Reset Dataset Endpoint ---
 @app.post("/reset-dataset")

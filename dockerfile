@@ -1,30 +1,35 @@
-# Use a Python base image - updated to newer version
+# Updated dockerfile that works for both training and serving
 FROM python:3.12-slim
 
-# Set working directory to /app (project root)
+# Set working directory
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better Docker layer caching
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire src directory to /app/src
+# Copy source code
 COPY ./src ./src
 
-# Set Python path to include the project root
+# Set Python path
 ENV PYTHONPATH=/app
 
-# Expose the port your FastAPI application will listen on
+# Expose port (for serving mode)
 EXPOSE 8080
-
-# Use environment variable for port to make it configurable
 ENV PORT=8080
 
-# Run the application using Uvicorn with full module path
-CMD uvicorn src.main:app --host 0.0.0.0 --port $PORT
+# Health check (for serving mode)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Default command - can be overridden in Cloud Build
+# For training: python src/cloud_orchestrator.py
+# For serving: uvicorn src.main:app --host 0.0.0.0 --port $PORT
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]

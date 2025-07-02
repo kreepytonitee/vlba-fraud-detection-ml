@@ -263,8 +263,8 @@ def generate_production_features(input_path='data/transactions_production.csv',
     print("High fraud period flags generated for production data.")
 
     # Save the label for production data
-    df_processed['Is Laundering'].to_csv(output_path_label, index=False)
-    print(f"Feature engineered production data saved to: {output_path_label}. Final shape: {df_processed.shape}")
+    df['Is Laundering'].to_csv(output_path_label, index=False)
+    print(f"Feature engineered production data saved to: {output_path_label}. Final shape: {df.shape}")
 
     # Drop interim columns that are not features for the model
     drop_cols_interim = [

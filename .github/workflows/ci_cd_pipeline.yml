@@ -24,6 +24,7 @@ jobs:
       with:
         # Pass your service account key to the auth action
         credentials_json: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
 
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
@@ -39,13 +40,24 @@ jobs:
       
     - name: Debug GCloud Authentication State # <--- NEW STEP FOR DEBUGGING
       run: |
-        echo "Attempting to list gcloud accounts..."
+        echo "=== Authentication Debug ==="
+        echo "Checking gcloud auth status..."
         gcloud auth list
-        echo "Attempting to show current gcloud project..."
+        echo "Current project:"
         gcloud config get-value project
-        echo "Attempting to show current active gcloud account..."
+        echo "Current account:"
         gcloud config get-value account
-      continue-on-error: true # Allow subsequent steps to run even if this fails
+        echo "Testing project access..."
+        gcloud projects describe ${{ secrets.GCP_PROJECT_ID }} || echo "Failed to describe project"
+        echo "Testing Cloud Build API access..."
+        gcloud builds list --limit=1 || echo "Failed to list builds"
+        echo "=== End Debug ==="
+      continue-on-error: true
+
+    - name: Set project explicitly # Add this step
+      run: |
+        gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+        echo "Project set to: $(gcloud config get-value project)"
 
     - name: Authorize Docker for GCR
       run: gcloud auth configure-docker
@@ -59,6 +71,7 @@ jobs:
     - name: Trigger Cloud Build
       run: |
         gcloud builds submit --config cloudbuild.yml . \
-          --substitutions=_CLOUD_RUN_REGION=${{ secrets.CLOUD_RUN_REGION }},_GCS_DATA_BUCKET=${{ secrets.GCS_DATA_BUCKET }},_GCS_MODEL_BUCKET=${{ secrets.GCS_MODEL_BUCKET }},_GIT_TAG=${{ env.GIT_TAG }}
+          --substitutions=_CLOUD_RUN_REGION=${{ secrets.CLOUD_RUN_REGION }},_GCS_DATA_BUCKET=${{ secrets.GCS_DATA_BUCKET }},_GCS_MODEL_BUCKET=${{ secrets.GCS_MODEL_BUCKET }},_GIT_TAG=${{ env.GIT_TAG }},_GCS_LOOKUPS_BUCKET=${{ secrets.GCS_LOOKUPS_BUCKET }}
       env:
-        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} # Pass project ID as env var to gcloud command if needed
+        CLOUDSDK_CORE_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}

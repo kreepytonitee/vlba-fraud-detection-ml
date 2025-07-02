@@ -6,42 +6,33 @@ substitutions:
   _GCS_LOOKUPS_BUCKET: 'vlba-fd-lookups-bucket'
   
 steps:
-# Step 1: Set up Python environment and install dependencies for the ML pipeline
-# This step ensures all necessary Python packages are available to run cloud_orchestrator.py
-- name: 'python:3.12'  # Changed from 'python' to 'python:3.12'
-  id: 'Setup Python Environment for ML Pipeline'  # Added quotes around ID
-  entrypoint: python
+# Step 1: Build the ML Pipeline Docker image
+# This creates a container with all dependencies installed for running the ML pipeline
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Build ML Pipeline Image'
   args:
-  - '-m'
-  - 'pip'
-  - 'install'
-  - '-r'
-  - 'requirements.txt' # Assuming you have a requirements.txt file listing all dependencies
-  # Add any specific packages not in requirements.txt if necessary for Cloud Build environment
-  # e.g., 'google-cloud-storage', 'pandas', 'scikit-learn' etc.
+  - 'build'
+  - '-t'
+  - 'ml-pipeline:${_GIT_TAG}'
+  - '-t'
+  - 'ml-pipeline:latest'
+  - '.'
 
-# Step 2: Execute the ML Pipeline Orchestrator
-# This step runs the cloud_orchestrator.py script, which performs
-# data preprocessing, feature engineering, and model training,
-# storing artifacts directly in GCS.
-- name: 'python:3.12'  # Changed from 'python' to 'python:3.12'
-  id: 'Run ML Pipeline'  # Added quotes around ID
-  entrypoint: python
-  args:
-  - 'cloud_orchestrator.py'
-  dir: 'src'  # Set working directory to src folder
+# Step 2: Run ML Pipeline in the built container
+# Execute the cloud_orchestrator.py script with all dependencies available
+- name: 'ml-pipeline:latest'
+  id: 'Run ML Pipeline'
+  entrypoint: 'python'
+  args: ['src/cloud_orchestrator.py']  # Path matches your project structure
   env: # Pass GCS bucket names as environment variables to the script
     - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET}'
     - 'GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET}'
-    - 'GCS_LOOKUPS_BUCKET=${_GCS_LOOKUPS_BUCKET}' # Pass lookup bucket if used by orchestrator
-  # Ensure the Cloud Build service account has necessary permissions for GCS operations
-  # (Storage Object Admin or specific roles for read/write on buckets).
+    - 'GCS_LOOKUPS_BUCKET=${_GCS_LOOKUPS_BUCKET}'
 
-# Step 3: Build the Docker image (Application, e.g., FastAPI)
-# Encapsulates the ML model, preprocessing logic, and API server (e.g., FastAPI) into a portable Docker image.
-# This step typically includes the inference code and potentially the trained model if bundled.
+# Step 3: Build the Application Docker image for Cloud Run deployment
+# This uses the same Dockerfile but tags it for deployment
 - name: 'gcr.io/cloud-builders/docker'
-  id: Build Application Docker Image
+  id: 'Build Application Docker Image'
   args:
   - 'build'
   - '-t'
@@ -51,30 +42,46 @@ steps:
   - '.'
 
 # Step 4: Push the Docker image to Google Container Registry
-# Persists the built image
+# Persists the built image for Cloud Run deployment
 - name: 'gcr.io/cloud-builders/docker'
-  id: Push Application Docker Image
+  id: 'Push Application Docker Image'
   args:
   - 'push'
-  - 'gcr.io/vlba-fraud-detection/fraud-detection-app'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:${_GIT_TAG}'
+
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Push Application Docker Image Latest'
+  args:
+  - 'push'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest'
 
 # Step 5: Deploy to Cloud Run
-# Note: Ensure Cloud Run API is enabled and Cloud Build service account has Cloud Run Admin role.
+# Deploy the application to Cloud Run with proper environment variables
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  id: Deploy Application to Cloud Run
-  entrypoint: gcloud
+  id: 'Deploy Application to Cloud Run'
+  entrypoint: 'gcloud'
   args:
   - 'run'
   - 'deploy'
   - 'fraud-detection-service' # Name of your Cloud Run service
   - '--image'
-  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest'
+  - 'gcr.io/vlba-fraud-detection/fraud-detection-app:${_GIT_TAG}'
   - '--region'
-  - '${_CLOUD_RUN_REGION}' # Region for Cloud Run deployment (e.g., europe-west1)
+  - '${_CLOUD_RUN_REGION}' # Region for Cloud Run deployment
   - '--platform'
   - 'managed'
-  - '--allow-unauthenticated' # Allow unauthenticated access for static site to call
-  - '--set-env-vars' # Set environment variables
-  - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET},GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET},BACKEND_SERVICE_URL=https://fraud-detection-api-${_CLOUD_RUN_REGION}.run.app'
+  - '--allow-unauthenticated' # Allow unauthenticated access
+  - '--set-env-vars'
+  - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET},GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET},GCS_LOOKUPS_BUCKET=${_GCS_LOOKUPS_BUCKET}'
+  - '--port'
+  - '8080' # Match the port in your Dockerfile
+  - '--memory'
+  - '2Gi' # Adjust based on your ML model requirements
+  - '--cpu'
+  - '2' # Adjust based on your performance needs
+  - '--timeout'
+  - '3600' # 1 hour timeout for ML operations
+
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8' # Use higher CPU for ML pipeline processing

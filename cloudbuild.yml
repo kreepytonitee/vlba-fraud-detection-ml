@@ -28,7 +28,8 @@ steps:
   id: 'Run ML Pipeline'  # Added quotes around ID
   entrypoint: python
   args:
-  - './cloud_orchestrator.py'
+  - 'cloud_orchestrator.py'
+  dir: 'src'  # Set working directory to src folder
   env: # Pass GCS bucket names as environment variables to the script
     - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET}'
     - 'GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET}'

@@ -26,7 +26,7 @@ def load_model_from_gcs():
 
 # Helper to load feature columns for model
 def load_feature_columns_for_model_from_gcs():
-    """Loads the list of feature columns from a JSON file in Google Cloud Storage."""
+    """Loads the list of feature columns from a file in Google Cloud Storage."""
     client = storage.Client()
     bucket = client.get_bucket(Config.GCS_MODEL_BUCKET)
     blob = bucket.blob(Config.GCS_FEATURE_COLUMNS_FILE)

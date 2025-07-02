@@ -3,7 +3,7 @@ substitutions:
   _GCS_DATA_BUCKET: 'vlba-fd-data-bucket' # Replace with your actual data bucket
   _GCS_MODEL_BUCKET: 'vlba-fd-model-bucket' # Replace with your actual model bucket
   _GIT_TAG: 'latest' # Default tag if not provided by trigger (e.g., for manual builds)
-  _GCS_LOOKUPS_BUCKET: 'vlba-fd-lookups-bucket
+  _GCS_LOOKUPS_BUCKET: 'vlba-fd-lookups-bucket'
   
 steps:
 # Step 1: Set up Python environment and install dependencies for the ML pipeline

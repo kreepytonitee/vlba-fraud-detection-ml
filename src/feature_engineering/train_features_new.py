@@ -264,14 +264,14 @@ def generate_training_features(input_path='data/transactions_train.csv',
     # Drop unnecessary columns that are not features for the model, or have been transformed
     drop_cols = [
         'Bank_Pair', 'Account_Pair', 'PaymentFormat_Hour', 'Sender_PaymentFormat', 'Day_Hour', 'Bank_Payment_Hour',
-        'Amount Received', 'Amount Paid', # Original amount columns are no longer needed after log transform and ratios
+        'Amount Received', 'Amount Paid', 'Timestamp', 'Account', 'Account.1', 'From Bank', 'To Bank',  'Day', 'Hour', 'Minute', 'Unnamed: 0' # Original amount columns are no longer needed after log transform and ratios
     ]
     # Filter out columns that might not exist after one-hot encoding or previous drops
     df_model = df.drop(columns=[col for col in drop_cols if col in df.columns], errors='ignore')
 
     # Save the list of final feature columns for consistency in production
     # Exclude target and identifier columns from this list.
-    final_feature_columns = [col for col in df_model.columns if col not in ['Is Laundering', 'Timestamp', 'Account', 'Account.1', 'From Bank', 'To Bank',  'Day', 'Hour', 'Minute', 'Unnamed: 0']]
+    final_feature_columns = [col for col in df_model.columns if col not in ['Is Laundering', 'Unnamed : 0']]
     with fsspec.open(feature_cols_output_path, 'w') as f:
         for col in final_feature_columns:
             f.write(col + '\n')

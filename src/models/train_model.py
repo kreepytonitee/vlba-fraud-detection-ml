@@ -34,14 +34,14 @@ def train_and_save_model(input_path='feature_engineered.csv',
     # # Ensure model output directory exists
     # os.makedirs(model_output_dir, exist_ok=True)
 
-    # Drop columns not intended for direct model input but present in the DataFrame.
-    # These include original identifiers and timestamps that have been processed into features.
-    drop_cols_for_model = [
-        'Account', 'Account.1', 'Timestamp', 'From Bank', 'To Bank', 'Day', 'Hour', 'Minute', 'Unnamed: 0'
-    ]
-    # Filter to drop only columns that actually exist in the DataFrame
-    df_model = df_model.drop(columns=[col for col in drop_cols_for_model if col in df_model.columns], errors='ignore')
-    print("Dropped identifier/original columns not used for direct model training.")
+    # # Drop columns not intended for direct model input but present in the DataFrame.
+    # # These include original identifiers and timestamps that have been processed into features.
+    # drop_cols_for_model = [
+    #     'Account', 'Account.1', 'Timestamp', 'From Bank', 'To Bank', 'Day', 'Hour', 'Minute', 'Unnamed: 0'
+    # ]
+    # # Filter to drop only columns that actually exist in the DataFrame
+    # df_model = df_model.drop(columns=[col for col in drop_cols_for_model if col in df_model.columns], errors='ignore')
+    # print("Dropped identifier/original columns not used for direct model training.")
 
     # Separating features (X) and target (y)
     X = df_model.drop(columns=['Is Laundering'])
@@ -141,10 +141,10 @@ def train_and_save_model(input_path='feature_engineered.csv',
 
 if __name__ == "__main__":
     # This block allows the script to be run directly for model training.
-    # It assumes 'feature_engineered.csv' exists.
+    # # It assumes 'feature_engineered.csv' exists.
     print("Running model training process...")
     if not os.path.exists('feature_engineered.csv'):
         print("Warning: 'feature_engineered.csv' not found. Please run 'feature_engineering/train_features.py' first.")
     os.makedirs('trained_models', exist_ok=True)
-    train_and_save_model()
+    train_and_save_model(input_path="C:/Users/anhng/Downloads/VSCode-Python/vlba-fd/anna/data/feature_engineered.csv")
 

@@ -19,6 +19,7 @@ class Config:
     GCS_PRODUCTION_DATA_FILE = os.getenv("GCS_PRODUCTION_DATA_FILE", "transactions_production.csv")
     GCS_FEATURE_ENGINEERED_TRAIN_FILE = os.getenv("GCS_FEATURE_ENGINEERED_TRAIN_FILE", "feature_engineered.csv")
     GCS_FEATURE_ENGINEERED_PROD_FILE = os.getenv("GCS_FEATURE_ENGINEERED_PROD_FILE", "production_feature_engineered.csv")
+    GCS_LABEL_PROD_FILE = os.getenv("GCS_FEATURE_ENGINEERED_PROD_FILE", "production_label.csv")
     GCS_PREDICTIONS_FILE = os.getenv("GCS_PREDICTIONS_FILE", "production_predictions.csv")
 
     # GCS Bucket for lookup tables (e.g., target encodings, fraud rates)

@@ -96,7 +96,6 @@ from utils.logger import logger
 # Helper to load model from GCS
 def load_model_from_gcs():
     """Loads the machine learning model from Google Cloud Storage."""
-    global model
     client = storage.Client()
     bucket = client.get_bucket(Config.GCS_MODEL_BUCKET)
     blob = bucket.blob(Config.GCS_MODEL_FILE)
@@ -105,6 +104,7 @@ def load_model_from_gcs():
         model_bytes = blob.download_as_bytes()
         model = joblib.load(io.BytesIO(model_bytes))
         logger.info(f"Successfully loaded model from gs://{Config.GCS_MODEL_BUCKET}/{Config.GCS_MODEL_FILE}")
+        return model
     except Exception as e:
         logger.error(f"Error loading model from GCS: {e}")
         raise
@@ -112,7 +112,6 @@ def load_model_from_gcs():
 # Helper to load feature columns for model
 def load_feature_columns_for_model_from_gcs():
     """Loads the list of feature columns from a JSON file in Google Cloud Storage."""
-    global MODEL_FEATURE_ORDER
     client = storage.Client()
     bucket = client.get_bucket(Config.GCS_MODEL_BUCKET)
     blob = bucket.blob(Config.GCS_FEATURE_COLUMNS_FILE)
@@ -123,6 +122,7 @@ def load_feature_columns_for_model_from_gcs():
         MODEL_FEATURE_ORDER = feature_bytes.decode('utf-8').splitlines()
         logger.info(f"Successfully loaded feature columns from gs://{Config.GCS_MODEL_BUCKET}/{Config.GCS_FEATURE_COLUMNS_FILE}")
         logger.info(f"Loaded feature order: {MODEL_FEATURE_ORDER}")
+        return MODEL_FEATURE_ORDER
     except Exception as e:
         logger.error(f"Error loading feature columns from GCS: {e}")
         raise
@@ -130,7 +130,6 @@ def load_feature_columns_for_model_from_gcs():
 # Helper to load production dataset
 def load_production_data_from_gcs():
     """Loads data from Google Cloud Storage."""
-    global production_dataset
     client = storage.Client()
     bucket = client.get_bucket(Config.GCS_DATA_BUCKET)
     blob = bucket.blob(Config.GCS_PRODUCTION_DATA_FILE)
@@ -139,6 +138,7 @@ def load_production_data_from_gcs():
         production_data_bytes = blob.download_as_bytes()
         production_dataset = pd.read_csv(io.BytesIO(production_data_bytes))
         logger.info(f"Successfully loaded production data from gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_PRODUCTION_DATA_FILE}")
+        return production_dataset
     except Exception as e:
         logger.error(f"Error loading production data from GCS: {e}")
         raise

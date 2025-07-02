@@ -53,6 +53,11 @@ def train_and_save_model(input_path='feature_engineered.csv',
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     print(f"Data split into training (X_train: {X_train.shape}) and testing (X_test: {X_test.shape}) sets.")
 
+    # feature_columns_path = model_output_dir + 'feature_columns.txt'
+    # with open(feature_columns_path, 'w') as f:
+    #     for col in X_train.columns.tolist():
+    #         f.write(f"{col}\n")
+
     # --- Dictionary to Track Model Objects and Scores ---
     model_scores = {}
 

@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import time
 import io
+import tempfile
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from google.cloud import storage
@@ -27,6 +28,9 @@ app = FastAPI(
 # For development/showcase, '*' is often used, but specify your frontend URL
 # (e.g., "https://your-website-bucket-name.storage.googleapis.com") for production.
 origins = [
+    "http://localhost:3000", # For Create React App
+    "http://localhost:5173", # For Vite
+    "http://localhost:8000",
     "https://storage.googleapis.com",
     "https://storage.cloud.google.com" # Allows all origins for development/testing.
     # Replace "*" with your actual static website URL for production security:
@@ -71,10 +75,14 @@ class Transaction(BaseModel):
 # This function runs once when the FastAPI application starts.
 @app.on_event("startup")
 async def startup_event():
+    # DECLARE GLOBAL VARIABLES HERE SO YOU CAN MODIFY THEM
+    global model, production_dataset, MODEL_FEATURE_ORDER
     logger.info("Starting up application...")
-    load_model_from_gcs()
-    load_feature_columns_for_model_from_gcs()
-    load_production_data_from_gcs() # Load production data when app starts
+
+    # ASSIGN THE RETURN VALUES TO THE GLOBAL VARIABLES
+    model = load_model_from_gcs()
+    MODEL_FEATURE_ORDER = load_feature_columns_for_model_from_gcs()
+    production_dataset = load_production_data_from_gcs() # Load production data when app starts
 
 # --- Health Check Endpoint (Recommended for Cloud Deployments) ---
 # This endpoint can be used by deployment platforms (like Cloud Run) to check
@@ -95,12 +103,40 @@ async def predict(transaction: Transaction):
 
         logger.info(f"Received input DataFrame for prediction: \n{input_df.to_string()}")
 
-        # Apply the same feature engineering logic used during training.
-        # This function will handle categorical encoding and feature alignment.
-        processed_feature_df = generate_production_features(input_df)
+        # 1. Create a temporary file for input to generate_production_features
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_input.csv', encoding='utf-8') as tmp_input_file:
+            input_temp_filepath = tmp_input_file.name
+            input_df.to_csv(tmp_input_file, index=False)
+            tmp_input_file.flush()
+            # os.fsync(tmp_input_file.fileno())
+
+        # 2. Create a temporary file path for the output of generate_production_features
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_output.csv', encoding='utf-8') as tmp_output_file:
+            output_temp_filepath = tmp_output_file.name
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_output.csv', encoding='utf-8') as tmp_output_file:
+            outputlabel_temp_filepath = tmp_output_file.name
+            # Don't write anything to it yet, just get the path
+
+        # 3. Call generate_production_features, passing both temp file paths
+        # It will read from input_temp_filepath and save to output_temp_filepath and outputlabel_temp_filepath
+        generate_production_features(
+            input_path=input_temp_filepath,
+            output_path_data=output_temp_filepath,
+            output_path_label=outputlabel_temp_filepath,
+            lookup_dir=f"gs://{Config.GCS_LOOKUPS_BUCKET}/"
+        )
+
+        # 4. Read the processed DataFrame from the output temporary file
+        processed_feature_df = pd.read_csv(output_temp_filepath) # <--- Read from the output temp file
+        true_label = pd.read_csv(outputlabel_temp_filepath)
         
         logger.info(f"Processed DataFrame for model prediction: \n{processed_feature_df.to_string()}")
-        logger.info(f"Processed DataFrame columns: {processed_feature_df.columns.tolist()}")
+        # logger.info(f"Processed DataFrame columns: {processed_feature_df.columns.tolist()}")
+
+        for col in MODEL_FEATURE_ORDER:  # Fill encoded columns
+            if col not in processed_feature_df.columns:
+                processed_feature_df[col] = 0
+        processed_feature_df = processed_feature_df[MODEL_FEATURE_ORDER] # Ensure the column order is exactly as expected by the model.
 
         # Validate that the processed features match the expected shape for the model
         if processed_feature_df.shape[1] != len(MODEL_FEATURE_ORDER):
@@ -110,14 +146,15 @@ async def predict(transaction: Transaction):
             logger.error(error_detail)
             raise HTTPException(status_code=400, detail=error_detail)
 
-        # Ensure the column order is exactly as expected by the model.
-        # This is handled by `apply_feature_engineering` by selecting `MODEL_FEATURE_ORDER`.
-        processed_feature_df = processed_feature_df[MODEL_FEATURE_ORDER] # Redundant if apply_feature_engineering does it
-        processed_feature_df = processed_feature_df.drop(columns=['transaction_id', 'timestamp', 'Is Laundering', 'from_bank', 'account', 'to_bank', 'account_1'], errors='ignore')
-        
         # Perform prediction
         start_time = time.perf_counter()
         
+        # print("Model expects:", MODEL_FEATURE_ORDER)
+        # print("Data columns:", processed_feature_df.columns.tolist())
+        # print("Columns not matching:", set(processed_feature_df.columns) - set(MODEL_FEATURE_ORDER))
+        # print("Extra columns:", set(processed_feature_df.columns) - set(MODEL_FEATURE_ORDER))
+        # print("Missing columns:", set(MODEL_FEATURE_ORDER) - set(processed_feature_df.columns))
+
         # `predict_proba` returns probabilities for each class (e.g., [prob_not_fraud, prob_fraud])
         # We assume binary classification here. `[0]` takes the first (and only) prediction.
         prediction_proba = model.predict_proba(processed_feature_df)[0].tolist() 
@@ -133,7 +170,8 @@ async def predict(transaction: Transaction):
         return {
             "prediction_class": prediction_class,
             "prediction_probabilities": prediction_proba,
-            "latency_ms": latency
+            "latency_ms": latency,
+            "true_label": true_label
         }
 
     except KeyError as e:
@@ -142,7 +180,27 @@ async def predict(transaction: Transaction):
     except Exception as e:
         logger.error(f"An unexpected error occurred during prediction: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An internal server error occurred during prediction. Details: {e}")
-
+    
+    finally:
+        # --- This cleanup logic is CRUCIAL for Cloud Run ---
+        if input_temp_filepath and os.path.exists(input_temp_filepath):
+            try:
+                os.remove(input_temp_filepath)
+                logger.info(f"Cleaned up temporary input file: {input_temp_filepath}")
+            except Exception as e:
+                logger.error(f"Error cleaning up input temp file {input_temp_filepath}: {e}")
+        if output_temp_filepath and os.path.exists(output_temp_filepath):
+            try:
+                os.remove(output_temp_filepath)
+                logger.info(f"Cleaned up temporary output file: {output_temp_filepath}")
+            except Exception as e:
+                logger.error(f"Error cleaning up output temp file {output_temp_filepath}: {e}")
+        if outputlabel_temp_filepath and os.path.exists(outputlabel_temp_filepath):
+            try:
+                os.remove(outputlabel_temp_filepath)
+                logger.info(f"Cleaned up temporary output file: {outputlabel_temp_filepath}")
+            except Exception as e:
+                logger.error(f"Error cleaning up output temp file {outputlabel_temp_filepath}: {e}")
 
 @app.get("/get-next-transaction")
 async def get_next_transaction():
@@ -161,6 +219,7 @@ async def get_next_transaction():
 @app.get("/monitoring")
 async def get_monitoring_data():
     """Returns current model monitoring metrics."""
+    global monitoring_data
     # Calculate average latency
     avg_latency = sum(monitoring_data[Config.PREDICTION_LATENCY_KEY]) / len(monitoring_data[Config.PREDICTION_LATENCY_KEY]) \
                   if monitoring_data[Config.PREDICTION_LATENCY_KEY] else 0

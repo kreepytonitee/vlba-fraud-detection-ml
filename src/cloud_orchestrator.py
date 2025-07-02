@@ -91,29 +91,30 @@ def run_cloud_pipeline():
         return
 
 
-    # --- Step 4: Feature Engineering (Production Data) ---
-    print("\n--- Stage 4: Feature Engineering (Production Data) ---")
-    # Check if raw production data and lookups exist in GCS
-    if not check_gcs_blob_exists(Config.GCS_DATA_BUCKET, Config.GCS_PRODUCTION_DATA_FILE):
-        logger.error(f"Error: Raw production data (gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_PRODUCTION_DATA_FILE}) not found.")
-        logger.info("Ensure Data Preprocessing stage completed successfully.")
-        return
-    if not check_gcs_blob_exists(Config.GCS_LOOKUPS_BUCKET, 'Fraud_Rate_By_Day_lookup.csv'): # Check a representative lookup
-        logger.error(f"Error: Lookup files not found in gs://{Config.GCS_LOOKUPS_BUCKET}.")
-        logger.info("Ensure Training Feature Engineering stage completed successfully to generate lookups.")
-        return
+    # # --- Step 4: Feature Engineering (Production Data) --- will be handled by FastAPI
+    # print("\n--- Stage 4: Feature Engineering (Production Data) ---")
+    # # Check if raw production data and lookups exist in GCS
+    # if not check_gcs_blob_exists(Config.GCS_DATA_BUCKET, Config.GCS_PRODUCTION_DATA_FILE):
+    #     logger.error(f"Error: Raw production data (gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_PRODUCTION_DATA_FILE}) not found.")
+    #     logger.info("Ensure Data Preprocessing stage completed successfully.")
+    #     return
+    # if not check_gcs_blob_exists(Config.GCS_LOOKUPS_BUCKET, 'Fraud_Rate_By_Day_lookup.csv'): # Check a representative lookup
+    #     logger.error(f"Error: Lookup files not found in gs://{Config.GCS_LOOKUPS_BUCKET}.")
+    #     logger.info("Ensure Training Feature Engineering stage completed successfully to generate lookups.")
+    #     return
 
-    # Call the GCS-aware feature engineering function for production data
-    try:
-        generate_production_features(
-            input_path=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_PRODUCTION_DATA_FILE}",
-            output_path=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_FEATURE_ENGINEERED_PROD_FILE}",
-            lookup_dir=f"gs://{Config.GCS_LOOKUPS_BUCKET}/"
-        )
-        logger.info("Production feature engineering completed and results uploaded to GCS.")
-    except Exception as e:
-        logger.info(f"Pipeline failed during Production Feature Engineering: {e}")
-        return
+    # # Call the GCS-aware feature engineering function for production data
+    # try:
+    #     generate_production_features(
+    #         input_path=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_PRODUCTION_DATA_FILE}",
+    #         output_path_data=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_FEATURE_ENGINEERED_PROD_FILE}",
+    #         output_path_label=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_LABEL_PROD_FILE}",
+    #         lookup_dir=f"gs://{Config.GCS_LOOKUPS_BUCKET}/"
+    #     )
+    #     logger.info("Production feature engineering completed and results uploaded to GCS.")
+    # except Exception as e:
+    #     logger.info(f"Pipeline failed during Production Feature Engineering: {e}")
+    #     return
 
 
     # # --- Step 5: Prediction --- will be handled by FastAPI

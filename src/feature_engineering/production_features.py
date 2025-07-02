@@ -51,7 +51,8 @@ def load_lookup_series(name, lookup_dir='lookups/'):
         return pd.Series()
 
 def generate_production_features(input_path='data/transactions_production.csv',
-                                 output_path='production_feature_engineered.csv',
+                                 output_path_data='production_feature_engineered.csv',
+                                 output_path_label='production_label.csv',
                                  lookup_dir='lookups/'):
     """
     Generates features for the production dataset using pre-computed lookup tables
@@ -261,15 +262,20 @@ def generate_production_features(input_path='data/transactions_production.csv',
     df['High_Fraud_Minute'] = (df['Fraud_Rate_By_Minute'] > minute_thresh).astype(int)
     print("High fraud period flags generated for production data.")
 
+    # Save the label for production data
+    df_processed['Is Laundering'].to_csv(output_path_label, index=False)
+    print(f"Feature engineered production data saved to: {output_path_label}. Final shape: {df_processed.shape}")
+
     # Drop interim columns that are not features for the model
     drop_cols_interim = [
-        'Bank_Pair', 'Account_Pair', 'PaymentFormat_Hour', 'Sender_PaymentFormat', 'Day_Hour', 'Bank_Payment_Hour'
+        'Bank_Pair', 'Account_Pair', 'PaymentFormat_Hour', 'Sender_PaymentFormat', 'Day_Hour', 'Bank_Payment_Hour', 'transaction_id',
+        'Is Laundering', 'Timestamp', 'Account', 'Account.1', 'From Bank', 'To Bank',  'Day', 'Hour', 'Minute', 'Unnamed: 0'
     ]
     df_processed = df.drop(columns=[col for col in drop_cols_interim if col in df.columns], errors='ignore')
 
     # Save the processed feature engineered production data
-    df_processed.to_csv(output_path, index=False)
-    print(f"Feature engineered production data saved to: {output_path}. Final shape: {df_processed.shape}")
+    df_processed.to_csv(output_path_data, index=False)
+    print(f"Feature engineered production data saved to: {output_path_data}. Final shape: {df_processed.shape}")
 
 
 if __name__ == "__main__":

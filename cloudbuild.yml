@@ -1,14 +1,46 @@
 substitutions:
   _CLOUD_RUN_REGION: 'europe-west10' # Default region, override in trigger if needed
-  _GCS_DATA_BUCKET: 'vlba-fd-data' # Replace with your actual data bucket
-  _GCS_MODEL_BUCKET: 'vlba-fd-model' # Replace with your actual model bucket
+  _GCS_DATA_BUCKET: 'vlba-fd-data-bucket' # Replace with your actual data bucket
+  _GCS_MODEL_BUCKET: 'vlba-fd-model-bucket' # Replace with your actual model bucket
   _GIT_TAG: 'latest' # Default tag if not provided by trigger (e.g., for manual builds)
-
+  _GCS_LOOKUPS_BUCKET: 'vlba-fd-lookups-bucket
+  
 steps:
-# Step 1: Build the Docker image
+# Step 1: Set up Python environment and install dependencies for the ML pipeline
+# This step ensures all necessary Python packages are available to run cloud_orchestrator.py
+- name: 'python'
+  id: Setup Python Environment for ML Pipeline
+  entrypoint: python
+  args:
+  - '-m'
+  - 'pip'
+  - 'install'
+  - '-r'
+  - 'requirements.txt' # Assuming you have a requirements.txt file listing all dependencies
+  # Add any specific packages not in requirements.txt if necessary for Cloud Build environment
+  # e.g., 'google-cloud-storage', 'pandas', 'scikit-learn' etc.
+
+# Step 2: Execute the ML Pipeline Orchestrator
+# This step runs the cloud_orchestrator.py script, which performs
+# data preprocessing, feature engineering, and model training,
+# storing artifacts directly in GCS.
+- name: 'python'
+  id: Run ML Pipeline
+  entrypoint: python
+  args:
+  - './cloud_orchestrator.py'
+  env: # Pass GCS bucket names as environment variables to the script
+    - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET}'
+    - 'GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET}'
+    - 'GCS_LOOKUPS_BUCKET=${_GCS_LOOKUPS_BUCKET}' # Pass lookup bucket if used by orchestrator
+  # Ensure the Cloud Build service account has necessary permissions for GCS operations
+  # (Storage Object Admin or specific roles for read/write on buckets).
+
+# Step 3: Build the Docker image (Application, e.g., FastAPI)
 # Encapsulates the ML model, preprocessing logic, and API server (e.g., FastAPI) into a portable Docker image.
+# This step typically includes the inference code and potentially the trained model if bundled.
 - name: 'gcr.io/cloud-builders/docker'
-  id: Build
+  id: Build Application Docker Image
   args:
   - 'build'
   - '-t'
@@ -17,18 +49,18 @@ steps:
   - 'gcr.io/vlba-fraud-detection/fraud-detection-app:latest' # Also tag as latest
   - '.'
 
-# Step 2: Push the Docker image to Google Container Registry
+# Step 4: Push the Docker image to Google Container Registry
 # Persists the built image
 - name: 'gcr.io/cloud-builders/docker'
-  id: Push
+  id: Push Application Docker Image
   args:
   - 'push'
   - 'gcr.io/vlba-fraud-detection/fraud-detection-app'
 
-# Step 3: Deploy to Cloud Run
+# Step 5: Deploy to Cloud Run
 # Note: Ensure Cloud Run API is enabled and Cloud Build service account has Cloud Run Admin role.
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  id: Deploy
+  id: Deploy Application to Cloud Run
   entrypoint: gcloud
   args:
   - 'run'
@@ -42,19 +74,6 @@ steps:
   - 'managed'
   - '--allow-unauthenticated' # Allow unauthenticated access for static site to call
   - '--set-env-vars' # Set environment variables
-  - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET},GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET},BACKEND_SERVICE_URL=https://fraud-detection-api-${_CLOUD_RUN_REGION}.run.app' # This URL needs to be dynamic or set after deployment if not fixed.
-                                                                                                        # For CI/CD, if you know the service name and region, you can construct it.
-                                                                                                        # Cloud Run provides the SERVICE_URL env var at runtime, but we need it for frontend.
-                                                                                                        # If using Cloud Build, consider fetching the URL after deployment, or hardcoding if fixed.
-                                                                                                        # For CI/CD, we'll hardcode based on known service name and region.
-                                                                                                        # A more robust solution might involve Cloud Deploy or manual update.
+  - 'GCS_DATA_BUCKET=${_GCS_DATA_BUCKET},GCS_MODEL_BUCKET=${_GCS_MODEL_BUCKET},BACKEND_SERVICE_URL=https://fraud-detection-api-${_CLOUD_RUN_REGION}.run.app'
 options:
   logging: CLOUD_LOGGING_ONLY
-
-
-# Example of how to add tests (optional)
-# - name: 'python'
-#   id: Test
-#   entrypoint: python
-#   args: ['-m', 'pytest']
-#   dir: 'src' # Assuming your tests are in src or a dedicated tests directory

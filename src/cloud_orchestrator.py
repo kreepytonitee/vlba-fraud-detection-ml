@@ -1,8 +1,8 @@
 import os
 import logging
-from src.utils.logger import logger
-from src.utils.config import Config
-from src.utils.gcs_utils import check_gcs_blob_exists
+from utils.logger import logger
+from utils.config import Config
+from utils.gcs_utils import check_gcs_blob_exists
 
 def run_training_pipeline():
     """
@@ -19,7 +19,7 @@ def run_training_pipeline():
             logger.info("Please upload your 'transactions.csv' to this GCS location manually and try again.")
             return False
 
-        from src.data_preprocessing.data_clean_split import clean_and_split_data
+        from data_preprocessing.data_clean_split import clean_and_split_data
         clean_and_split_data(
             input_csv_path=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_RAW_DATA_FILE}",
             train_output_path=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_TRAIN_DATA_FILE}",
@@ -36,7 +36,7 @@ def run_training_pipeline():
             logger.error(f"Training data not found.")
             return False
 
-        from src.feature_engineering.train_features import generate_training_features
+        from feature_engineering.train_features import generate_training_features
         generate_training_features(
             input_path=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_TRAIN_DATA_FILE}",
             output_path=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_FEATURE_ENGINEERED_TRAIN_FILE}",
@@ -51,7 +51,7 @@ def run_training_pipeline():
             logger.error(f"Feature engineered training data not found.")
             return False
 
-        from src.models.train_model_mlflow import train_and_save_model
+        from models.train_model import train_and_save_model
         train_and_save_model(
             input_path=f"gs://{Config.GCS_DATA_BUCKET}/{Config.GCS_FEATURE_ENGINEERED_TRAIN_FILE}",
             model_output_dir=f"gs://{Config.GCS_MODEL_BUCKET}/"
@@ -67,7 +67,7 @@ def run_training_pipeline():
             "timestamp": os.getenv('BUILD_TIMESTAMP', 'unknown')
         }
         
-        from src.utils.gcs_utils import upload_json_to_gcs
+        from utils.gcs_utils import upload_json_to_gcs
         upload_json_to_gcs(
             pipeline_info, 
             Config.GCS_MODEL_BUCKET, 
@@ -89,7 +89,7 @@ def run_training_pipeline():
         }
         
         try:
-            from src.utils.gcs_utils import upload_json_to_gcs
+            from utils.gcs_utils import upload_json_to_gcs
             upload_json_to_gcs(
                 error_info, 
                 Config.GCS_MODEL_BUCKET, 
@@ -117,4 +117,4 @@ def main():
         logger.info("No training mode specified. Use TRAINING_MODE=true to run training.")
 
 if __name__ == "__main__":
-    main()
+    run_training_pipeline()
